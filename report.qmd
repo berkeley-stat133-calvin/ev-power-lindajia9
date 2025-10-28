@@ -3,32 +3,212 @@ title: "EV Power - Lab 4 Project Report"
 format: typst
 ---
 
-# Example Solution 1
 
 ## **Part 0: libraries**
-
-```{r}
-
+```{r echo=F}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(sf)
+library(maps)
 ```
 
 ## **Part 1:** **Defining Research Question**
 
-Chosen Question:
+Chosen Question: What percent of total energy use in each state comes from clean sources?
 
 ## **Part 2: Data Preparation and Cleaning**
 
 ```{r}
-
+renew_2021 <- read_csv("data/renew-use-2021.csv")
+renew_2022 <- read_csv("data/renew-use-2022.csv")
+renew_2023 <- read_csv("data/renew-use-2023.csv")
+total_2021 <- read_csv("data/total-use-2021.csv")
+total_2022 <- read_csv("data/total-use-2022.csv")
+total_2023 <- read_csv("data/total-use-2023.csv")
 ```
+
+```{r}
+renew_2021 <- renew_2021 |>
+    mutate(Energy_Source = str_remove(Energy_Source, "\\s+Energy$"), 
+        Renewable_Use_2021 = as.numeric(str_extract(Renewable_Use_2021, "\\d+")),
+        State = toupper(State)) 
+
+renew_2022 <- renew_2022 |>
+    mutate(Energy_Source = str_remove(Energy_Source, "\\s+Energy$"), 
+        Renewable_Use_2022 = as.numeric(str_extract(Renewable_Use_2022, "\\d+")),
+        State = toupper(State))  
+
+renew_2023 <- renew_2023 |>
+    mutate(Energy_Source = str_remove(Energy_Source, "\\s+Energy$"), 
+        Renewable_Use_2023 = as.numeric(str_extract(Renewable_Use_2023, "\\d+")),
+        State = toupper(State))  
+
+total_2021 <- total_2021 |>
+    mutate(Energy_Source = str_to_title(Energy_Source),
+        Energy_Source = case_when(
+            str_detect(Energy_Source, "^Coal") ~ "Coal",
+            str_detect(Energy_Source, "^Natural") ~ "Natural_Gas",
+            str_detect(Energy_Source, "^Petroleum") ~ "Petroleum",
+            str_detect(Energy_Source, "^Nuclear") ~ "Nuclear",
+            str_detect(Energy_Source, "^Total") ~ "Total_Renew"))
+
+total_2022 <- total_2022 |>
+    mutate(Energy_Source = str_to_title(Energy_Source),
+        Energy_Source = case_when(
+            str_detect(Energy_Source, "^Coal") ~ "Coal",
+            str_detect(Energy_Source, "^Natural") ~ "Natural_Gas",
+            str_detect(Energy_Source, "^Petroleum") ~ "Petroleum",
+            str_detect(Energy_Source, "^Nuclear") ~ "Nuclear",
+            str_detect(Energy_Source, "^Total") ~ "Total_Renew"))
+
+total_2023 <- total_2023 |>
+    mutate(Energy_Source = str_to_title(Energy_Source),
+        Energy_Source = case_when(
+            str_detect(Energy_Source, "^Coal") ~ "Coal",
+            str_detect(Energy_Source, "^Natural") ~ "Natural_Gas",
+            str_detect(Energy_Source, "^Petroleum") ~ "Petroleum",
+            str_detect(Energy_Source, "^Nuclear") ~ "Nuclear",
+            str_detect(Energy_Source, "^Total") ~ "Total_Renew"))
+```
+
 
 ## **Part 3: Joining / Pivoting Datasets for Analysis**
 
 ```{r}
+# filter clean energy sources for each renew-use dataset (2021-2023)
+clean_energy1 <- tibble(Energy_Source = c("Hydropower", "Wind", "Solar"))
+renew_2021 <- semi_join(renew_2021, clean_energy1, by = "Energy_Source") 
+
+renew_2022 <- semi_join(renew_2022, clean_energy1, by = "Energy_Source") 
+    
+renew_2023 <- semi_join(renew_2023, clean_energy1, by = "Energy_Source") 
+   
+
+# computing total clean energy used by State for each year (for renew-use datasets)
+clean_2021 <- renew_2021 |>
+    group_by(State) |>
+    summarize(Clean_Energy1 = sum(Renewable_Use_2021, na.rm = TRUE)) 
+head(clean_2021)
+
+clean_2022 <- renew_2022 |>
+    group_by(State) |>
+    summarize(Clean_Energy1 = sum(Renewable_Use_2022, na.rm = TRUE)) 
+head(clean_2022)
+
+clean_2023 <- renew_2023 |>
+    group_by(State) |>
+    summarize(Clean_Energy1 = sum(Renewable_Use_2023, na.rm = TRUE)) 
+head(clean_2023)
+```
+
+```{r}
+total_2021 <- total_2021 |>
+    pivot_longer(-Energy_Source, names_to = "State", values_to = "Energy_Use_2021") 
+head(total_2021)
+
+total_2022 <- total_2022 |>
+    pivot_longer(-Energy_Source, names_to = "State", values_to = "Energy_Use_2022") 
+head(total_2022)
+
+total_2023 <- total_2023 |>
+    pivot_longer(-Energy_Source, names_to = "State", values_to = "Energy_Use_2023")
+head(total_2023)
+```
+
+```{r}
+# filter nuclear energy for each total-use dataset then add nuclear energy consumed to the total clean energy used calculated above
+
+nuclear_2021 <- total_2021 |>
+  filter(Energy_Source == "Nuclear") |>
+  select(State, Clean_Energy2 = Energy_Use_2021) 
+
+clean_2021 <- clean_2021 |>
+  left_join(nuclear_2021, by = "State") |>
+  mutate(Clean_Energy = Clean_Energy1 + Clean_Energy2) |>
+  select(State, Clean_Energy) 
+head(clean_2021)
+
+
+nuclear_2022 <- total_2022 |>
+  filter(Energy_Source == "Nuclear") |>
+  select(State, Clean_Energy2 = Energy_Use_2022)
+
+clean_2022 <- clean_2022 |>
+  left_join(nuclear_2022, by = "State") |>
+  mutate(Clean_Energy = Clean_Energy1 + Clean_Energy2) |>
+  select(State, Clean_Energy)
+head(clean_2022)
+
+nuclear_2023 <- total_2023 |>
+  filter(Energy_Source == "Nuclear") |>
+  select(State, Clean_Energy2 = Energy_Use_2023)
+
+clean_2023 <- clean_2023 |>
+  left_join(nuclear_2023, by = "State") |>
+  mutate(Clean_Energy = Clean_Energy1 + Clean_Energy2) |>
+  select(State, Clean_Energy)
+head(clean_2023)
+```
+
+```{r}
+# Calculate total energy used by State for each year
+Total_2021 <- total_2021 |>
+    group_by(State) |>
+    summarize(total_energy = sum(Energy_Use_2021, na.rm = TRUE))
+head(Total_2021)
+
+Total_2022 <- total_2022 |>
+    group_by(State) |>
+    summarize(total_energy = sum(Energy_Use_2022, na.rm = TRUE))
+head(Total_2022)
+
+Total_2023 <- total_2023 |>
+    group_by(State) |>
+    summarize(total_energy = sum(Energy_Use_2023, na.rm = TRUE))
+head(Total_2021)
 
 ```
+
+```{r}
+# Calculate percentage of clean energy for each year
+percent_clean_2021 <- clean_2021 |>
+    left_join(Total_2021, by = "State") |>
+    mutate(Clean_Energy_Percent = 100 * Clean_Energy / total_energy)
+head(percent_clean_2021)
+
+percent_clean_2022 <- clean_2022 |>
+    left_join(Total_2022, by = "State") |>
+    mutate(Clean_Energy_Percent = 100 * Clean_Energy / total_energy)
+head(percent_clean_2022)
+
+percent_clean_2023 <- clean_2023 |>
+    left_join(Total_2023, by = "State") |>
+    mutate(Clean_Energy_Percent = 100 * Clean_Energy / total_energy)
+head(percent_clean_2023)
+
+```
+
 
 ## **Part 4: Mapping Visualization**
 
 ```{r}
+states_map <- map_data("state")
 
+percent_clean_2021  <- percent_clean_2021 |>
+  mutate(region = tolower(state.name[match(State, state.abb)]))
+
+map_data_joined <- states_map |>
+  left_join(percent_clean_2021 , by = "region")
+
+ggplot(map_data_joined, aes(long, lat, group = group, fill = Clean_Energy_Percent)) +
+  geom_polygon(color = "white") +
+  coord_fixed(1.3) +
+  theme_minimal() +
+  scale_fill_viridis_c()  +
+  labs(title = "Percent of Total Energy from Clean Sources by State") 
 ```
+
+South Carolina has the highest percentage (approx. 33%) of total energy coming from clean sources compared to all other states. Several states have very low percentage of total energy coming from clean sources.
